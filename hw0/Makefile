@@ -1,6 +1,8 @@
 all: hw0
 hw0: main.o wc.o map.o
-	gcc -std=gnu99 main.o wc.o map.o -o hw0
+	gcc -c -g -std=gnu99 main.c
+	gcc -c -g -std=gnu99 wc.c
+	gcc -c -g -std=gnu99 map.c
 main.o: main.c
 	gcc -c -g -std=gnu99 main.c
 wc.o: wc.c
