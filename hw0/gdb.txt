@@ -1,0 +1,27 @@
+What is the value of argv? (hint: print argv)
+(char **) 0x7fffffffe668
+This is a pointer to an array of strings. Each string of char is an input to the program.
+
+What is pointed to by argv? (hint: print argv[0])
+0x7fffffffe880 "/home/vagrant/code/personal/hw0/wc"
+This is the name the program itself as a string of char.
+
+What is the address of the function main?
+Symbol "main" is a function at address 0x400808.
+
+Try info stack. Explain what you see.
+main (argc=2, argv=0x7fffffffe668)
+This prints all frames in the stack. main a frame in the stack. argc is the number of arguments. argv is the pointer to the arguments as an array of strings of char, where the first element is name of the program executable.
+
+Try info frame. Explain what you see.
+Stack level 0, frame at 0x7fffffffe590:
+ rip = 0x400817 in main (wc.c:35); saved rip = 0x7ffff7a36ec5
+ source language c.
+ Arglist at 0x7fffffffe580, args: argc=2, argv=0x7fffffffe668
+ Locals at 0x7fffffffe580, Previous frame's sp is 0x7fffffffe590
+ Saved registers:
+  rbp at 0x7fffffffe580, rip at 0x7fffffffe588
+This gives information about the current frame in the stack. It gives information of the address of the arguments, the previous stackpointer (frame) address, and registers being used and written to.
+
+Try info registers. Which registers are holding aspects of the program that you recognize?
+Register rbp holds address argv points to. Register rsi holds the address of the pointer argv. Register rip holds the location of the next instruction.

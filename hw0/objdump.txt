@@ -1,0 +1,13 @@
+What file format is used for this binary? And what architecture is it compiled for?
+elf64-x86-64 is file format.  x86-64 is the architecture.
+
+What are some of the names of segments you find?
+Some segments are .text, .data, .comment, .debug_info, .init, and .bss. There are 30 segments total.
+
+
+What segment contains main (the function) and what is the address of main? (It should be the
+same as what you saw in gdb)
+.text section holds main. The address is 0x400808.
+
+Do you see the stack segment anywhere? What about the heap? Explain.
+I don't see the stack or heap segment. This is because the stack and heap are allocated during runtime and stored in memory.
