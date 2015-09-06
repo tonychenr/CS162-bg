@@ -7,22 +7,21 @@ int wc(FILE *readfile, int *counts) {
   int wordcount = 0;
   int linecount = 0;
   int curr = fgetc(readfile);
-  int prev = fgetc(readfile);
+  int prev = '\n';
   while (1) {
-    charcount++;
+    if (isspace(curr) && !isspace(prev)) {
+      wordcount++;
+    }
+    if (curr == '\n' || curr == '\r') {
+      linecount++;
+    }
     if (curr == EOF) {
       if (!isspace(prev)) {
         wordcount++;
       }
       break;
-    } else if (isspace(curr)) {
-      if (!isspace(prev)) {
-        wordcount++;
-      }
-      if (curr == '\n') {
-        linecount++;
-      }
     }
+    charcount++;
     prev = curr;
     curr = fgetc(readfile);
   }
