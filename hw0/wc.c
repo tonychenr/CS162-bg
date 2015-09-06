@@ -9,17 +9,17 @@ int wc(FILE *readfile, int *counts) {
   int curr = fgetc(readfile);
   int prev = '\n';
   while (1) {
-    if (isspace(curr) && !isspace(prev)) {
-      wordcount++;
-    }
-    if (curr == '\n' || curr == '\r') {
-      linecount++;
-    }
     if (curr == EOF) {
       if (!isspace(prev)) {
         wordcount++;
       }
       break;
+    }
+    if (isspace(curr) && !isspace(prev)) {
+      wordcount++;
+    }
+    if (curr == '\n') {
+      linecount++;
     }
     charcount++;
     prev = curr;
