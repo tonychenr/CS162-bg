@@ -10,7 +10,7 @@ int wc(FILE *readfile, int *counts) {
   int prev = '\n';
   while (1) {
     if (curr == EOF) {
-      if (!isspace(prev)) {
+      if (!isspace(prev) && prev != '\0') {
         wordcount++;
       }
       break;
