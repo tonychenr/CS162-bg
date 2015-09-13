@@ -29,6 +29,8 @@ pid_t shell_pgid;
 
 int cmd_quit(tok_t arg[]);
 int cmd_help(tok_t arg[]);
+int cmd_cd(tok_t arg[]);
+int cmd_pwd(tok_t arg[]);
 
 /* Built-in command functions take token array (see parse.h) and return int */
 typedef int cmd_fun_t(tok_t args[]);
@@ -43,6 +45,8 @@ typedef struct fun_desc {
 fun_desc_t cmd_table[] = {
   {cmd_help, "?", "show this help menu"},
   {cmd_quit, "quit", "quit the command shell"},
+  {cmd_cd, "cd", "change the current working directory to input directory"},
+  {cmd_pwd, "pwd", "prints current working directory to standard output"},
 };
 
 /**
@@ -61,6 +65,23 @@ int cmd_help(tok_t arg[]) {
 int cmd_quit(tok_t arg[]) {
   exit(0);
   return 1;
+}
+
+int cmd_cd(tok_t arg[]) {
+  if (arg) {
+    int cd_ret = chdir(arg[0]);
+    if (cd_ret == 0){
+      return 0;
+    }
+  }
+  return -1;
+}
+
+int cmd_pwd(tok_t arg[]) {
+  char *buffer;
+  buffer = getcwd(NULL, 0);
+  printf("%s\n", buffer);
+  return 0;
 }
 
 /**
