@@ -137,14 +137,47 @@ int shell(int argc, char *argv[]) {
       /* REPLACE this to run commands as programs. */
       // fprintf(stdout, "This shell doesn't know how to run programs.\n");
       pid_t run_cmd = fork();
-      int exit;
+      int rc;
       if (run_cmd != 0) {
-        wait(&exit);
+        wait(&rc);
       } else {
         execv(tokens[0], tokens);
+        exit(1);
+      }
+      if (WEXITSTATUS(rc) != 0) {
+        char *PATH = getenv("PATH");
+        char *tok;
+        char *command = tokens[0];
+        if (!PATH) {
+          break;
+        }
+        if (PATH) {
+          tok = strtok(PATH, ":");
+          while (tok != NULL) {
+            char *executable = (char *) malloc(strlen(tok) + strlen(tokens[0]) + 1);
+            if (executable == NULL) {
+              return -1;
+            }
+            strcpy(executable, tok);
+            strcat(executable, "/");
+            strcat(executable, command);
+            run_cmd = fork();
+            if (run_cmd != 0) {
+              wait(&rc);
+              if (WEXITSTATUS(rc) == 0) {
+                break;
+              }
+            } else {
+              tokens[0] = executable;
+              execv(executable, tokens);
+              exit(1);
+            }
+            free(executable);
+            tok = strtok(NULL, ":");
+          }
+        }
       }
     }
-
     if (shell_is_interactive)
       /* Please only print shell prompts when standard input is not a tty */
       fprintf(stdout, "%d: ", ++line_num);
