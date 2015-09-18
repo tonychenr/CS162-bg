@@ -9,6 +9,7 @@
 #include <sys/wait.h>
 #include <termios.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 #include "io.h"
 #include "parse.h"
@@ -94,6 +95,22 @@ int lookup(char cmd[]) {
   return -1;
 }
 
+int *has_redirect(tok_t *tokens) {
+  int* array = malloc(2*sizeof(int));
+  array[0] = -1;
+  array[1] = -1;
+  for (int i = 0; tokens[i+1] != NULL; i++) {
+    if (strcmp(tokens[i], "<") == 0) {
+      array[0] = 0;
+      array[1] = i+1;
+    } else if (strcmp(tokens[i], ">") == 0) {
+      array[0] = 1;
+      array[1] = i+1;
+    }
+  }
+  return array;
+}
+
 /**
  * Intialization procedures for this shell
  */
@@ -141,7 +158,25 @@ int shell(int argc, char *argv[]) {
       if (run_cmd != 0) {
         wait(&rc);
       } else {
+        int * redirect = has_redirect(tokens);
+        char *symbol = tokens[redirect[0]];
+        char *file_name = tokens[redirect[1]];
+        if (redirect[0] == 0) {
+          int filedes = open(tokens[redirect[1]], O_RDONLY, 0644);
+          dup2(filedes, 0);
+          tokens[redirect[1] - 1] = NULL;
+          tokens[redirect[1]] = NULL;
+        }
+        if (redirect[0] == 1) {
+          int filedes = open(tokens[redirect[1]], O_CREAT|O_TRUNC|O_WRONLY, 0644);
+          dup2(filedes, 1);
+          tokens[redirect[1] - 1] = NULL;
+          tokens[redirect[1]] = NULL;
+        }
         execv(tokens[0], tokens);
+        tokens[redirect[1] - 1] = symbol;
+        tokens[redirect[1]] = file_name;
+        free(redirect);
         exit(1);
       }
       if (WEXITSTATUS(rc) != 0) {
@@ -168,8 +203,26 @@ int shell(int argc, char *argv[]) {
                 break;
               }
             } else {
+              int *redirect = has_redirect(tokens);
+              char *symbol = tokens[redirect[0]];
+              char *file_name = tokens[redirect[1]];
+              if (redirect[0] == 0) {
+                int filedes = open(tokens[redirect[1]], O_RDONLY, 0644);
+                dup2(filedes, 0);
+                tokens[redirect[1] - 1] = NULL;
+                tokens[redirect[1]] = NULL;
+              }
+              if (redirect[0] == 1) {
+                int filedes = open(tokens[redirect[1]], O_CREAT|O_TRUNC|O_WRONLY, 0644);
+                dup2(filedes, 1);
+                tokens[redirect[1] - 1] = NULL;
+                tokens[redirect[1]] = NULL;
+              }
               tokens[0] = executable;
               execv(executable, tokens);
+              tokens[redirect[1] - 1] = symbol;
+              tokens[redirect[1]] = file_name;
+              free(redirect);
               exit(1);
             }
             free(executable);
@@ -182,6 +235,6 @@ int shell(int argc, char *argv[]) {
       /* Please only print shell prompts when standard input is not a tty */
       fprintf(stdout, "%d: ", ++line_num);
   }
-
+  free(tokens);
   return 0;
 }
