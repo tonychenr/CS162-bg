@@ -96,7 +96,7 @@ int lookup(char cmd[]) {
 }
 
 int *has_redirect(tok_t *tokens) {
-  int* array = malloc(2*sizeof(int));
+  static int array[2];
   array[0] = -1;
   array[1] = -1;
   for (int i = 0; tokens[i+1] != NULL; i++) {
@@ -138,13 +138,19 @@ int shell(int argc, char *argv[]) {
   tok_t *tokens;
   int line_num = 0;
   int fundex = -1;
-
   init_shell();
 
   if (shell_is_interactive)
     /* Please only print shell prompts when standard input is not a tty */
     fprintf(stdout, "%d: ", line_num);
-
+  signal(SIGINT, SIG_IGN);
+  // signal(SIGQUIT, SIG_IGN);
+  // signal(SIGKILL, SIG_IGN);
+  signal(SIGTERM, SIG_IGN);
+  signal(SIGTSTP, SIG_IGN);
+  signal(SIGCONT, SIG_IGN);
+  signal(SIGTTIN, SIG_IGN);
+  signal(SIGTTOU, SIG_IGN);
   while ((input_bytes = freadln(stdin))) {
     tokens = get_toks(input_bytes);
     fundex = lookup(tokens[0]);
@@ -153,39 +159,50 @@ int shell(int argc, char *argv[]) {
     } else {
       /* REPLACE this to run commands as programs. */
       // fprintf(stdout, "This shell doesn't know how to run programs.\n");
-      pid_t run_cmd = fork();
-      int rc;
-      if (run_cmd != 0) {
-        wait(&rc);
-      } else {
-        int * redirect = has_redirect(tokens);
-        char *symbol = tokens[redirect[0]];
-        char *file_name = tokens[redirect[1]];
-        if (redirect[0] == 0) {
-          int filedes = open(tokens[redirect[1]], O_RDONLY, 0644);
-          dup2(filedes, 0);
-          tokens[redirect[1] - 1] = NULL;
-          tokens[redirect[1]] = NULL;
-        }
-        if (redirect[0] == 1) {
-          int filedes = open(tokens[redirect[1]], O_CREAT|O_TRUNC|O_WRONLY, 0644);
-          dup2(filedes, 1);
-          tokens[redirect[1] - 1] = NULL;
-          tokens[redirect[1]] = NULL;
-        }
-        execv(tokens[0], tokens);
-        tokens[redirect[1] - 1] = symbol;
-        tokens[redirect[1]] = file_name;
-        free(redirect);
-        exit(1);
+      pid_t run_cmd;
+      if (tokens[0] == NULL) {
+
       }
-      if (WEXITSTATUS(rc) != 0) {
+      if (strncmp(tokens[0], "/", 1) == 0) {
+        run_cmd = fork();
+        if (run_cmd != 0) {
+          setpgid(run_cmd, 0);
+          put_process_in_foreground(run_cmd, true, &shell_tmodes);
+        } else {
+          setpgrp();
+          tcsetpgrp(shell_terminal, getpgrp());
+          signal(SIGINT, SIG_DFL);
+          // signal(SIGQUIT, SIG_IGN);
+          // signal(SIGKILL, SIG_DFL);
+          signal(SIGTERM, SIG_DFL);
+          signal(SIGTSTP, SIG_DFL);
+          signal(SIGCONT, SIG_DFL);
+          signal(SIGTTIN, SIG_DFL);
+          signal(SIGTTOU, SIG_DFL);
+          int * redirect = has_redirect(tokens);
+          char *symbol = tokens[redirect[0]];
+          char *file_name = tokens[redirect[1]];
+          if (redirect[0] == 0) {
+            int filedes = open(tokens[redirect[1]], O_RDONLY, 0644);
+            dup2(filedes, 0);
+            tokens[redirect[1] - 1] = NULL;
+            tokens[redirect[1]] = NULL;
+          }
+          if (redirect[0] == 1) {
+            int filedes = open(tokens[redirect[1]], O_CREAT|O_TRUNC|O_WRONLY, 0644);
+            dup2(filedes, 1);
+            tokens[redirect[1] - 1] = NULL;
+            tokens[redirect[1]] = NULL;
+          }
+          execv(tokens[0], tokens);
+          tokens[redirect[1] - 1] = symbol;
+          tokens[redirect[1]] = file_name;
+          exit(1);
+        }
+      } else {
         char *PATH = getenv("PATH");
         char *tok;
         char *command = tokens[0];
-        if (!PATH) {
-          break;
-        }
         if (PATH) {
           tok = strtok(PATH, ":");
           while (tok != NULL) {
@@ -198,11 +215,19 @@ int shell(int argc, char *argv[]) {
             strcat(executable, command);
             run_cmd = fork();
             if (run_cmd != 0) {
-              wait(&rc);
-              if (WEXITSTATUS(rc) == 0) {
-                break;
-              }
+              setpgid(run_cmd, 0);
+              put_process_in_foreground(run_cmd, true, &shell_tmodes);
             } else {
+              setpgrp();
+              tcsetpgrp(shell_terminal, getpgrp());
+              signal(SIGINT, SIG_DFL);
+              // signal(SIGQUIT, SIG_IGN);
+              // signal(SIGKILL, SIG_DFL);
+              signal(SIGTERM, SIG_DFL);
+              signal(SIGTSTP, SIG_DFL);
+              signal(SIGCONT, SIG_DFL);
+              signal(SIGTTIN, SIG_DFL);
+              signal(SIGTTOU, SIG_DFL);
               int *redirect = has_redirect(tokens);
               char *symbol = tokens[redirect[0]];
               char *file_name = tokens[redirect[1]];
@@ -222,7 +247,6 @@ int shell(int argc, char *argv[]) {
               execv(executable, tokens);
               tokens[redirect[1] - 1] = symbol;
               tokens[redirect[1]] = file_name;
-              free(redirect);
               exit(1);
             }
             free(executable);
@@ -235,6 +259,5 @@ int shell(int argc, char *argv[]) {
       /* Please only print shell prompts when standard input is not a tty */
       fprintf(stdout, "%d: ", ++line_num);
   }
-  free(tokens);
   return 0;
 }
