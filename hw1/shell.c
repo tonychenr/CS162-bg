@@ -28,10 +28,13 @@ struct termios shell_tmodes;
 /* Process group id for the shell */
 pid_t shell_pgid;
 
+int bgprocesses = 0;
+
 int cmd_quit(tok_t arg[]);
 int cmd_help(tok_t arg[]);
 int cmd_cd(tok_t arg[]);
 int cmd_pwd(tok_t arg[]);
+int cmd_wait(tok_t arg[]);
 
 /* Built-in command functions take token array (see parse.h) and return int */
 typedef int cmd_fun_t(tok_t args[]);
@@ -48,6 +51,7 @@ fun_desc_t cmd_table[] = {
   {cmd_quit, "quit", "quit the command shell"},
   {cmd_cd, "cd", "change the current working directory to input directory"},
   {cmd_pwd, "pwd", "prints current working directory to standard output"},
+  {cmd_wait, "wait", "wait for all background processes to finish"},
 };
 
 /**
@@ -85,6 +89,15 @@ int cmd_pwd(tok_t arg[]) {
   return 0;
 }
 
+int cmd_wait(tok_t arg[]) {
+  int status;
+  for (int i = 0; i < bgprocesses; i++) {
+    waitpid(-1, &status, 0);
+  }
+  bgprocesses = 0;
+  return 0;
+}
+
 /**
  * Looks up the built-in command, if it exists.
  */
@@ -109,6 +122,17 @@ int *has_redirect(tok_t *tokens) {
     }
   }
   return array;
+}
+
+int is_background(tok_t *tokens) {
+  static int bg = 0;
+  for (int i = 0; tokens[i] != NULL; i++) {
+    if (strcmp(tokens[i], "&") == 0) {
+      tokens[i] = NULL;
+      bg = 1;
+    }
+  }
+  return bg;
 }
 
 /**
@@ -144,8 +168,6 @@ int shell(int argc, char *argv[]) {
     /* Please only print shell prompts when standard input is not a tty */
     fprintf(stdout, "%d: ", line_num);
   signal(SIGINT, SIG_IGN);
-  // signal(SIGQUIT, SIG_IGN);
-  // signal(SIGKILL, SIG_IGN);
   signal(SIGTERM, SIG_IGN);
   signal(SIGTSTP, SIG_IGN);
   signal(SIGCONT, SIG_IGN);
@@ -160,20 +182,21 @@ int shell(int argc, char *argv[]) {
       /* REPLACE this to run commands as programs. */
       // fprintf(stdout, "This shell doesn't know how to run programs.\n");
       pid_t run_cmd;
-      if (tokens[0] == NULL) {
-
-      }
       if (strncmp(tokens[0], "/", 1) == 0) {
         run_cmd = fork();
         if (run_cmd != 0) {
           setpgid(run_cmd, 0);
-          put_process_in_foreground(run_cmd, true, &shell_tmodes);
+          if (is_background(tokens)) {
+            bgprocesses++;
+          } else {
+            put_process_in_foreground(run_cmd, true, &shell_tmodes);
+          }
         } else {
           setpgrp();
-          tcsetpgrp(shell_terminal, getpgrp());
+          if (!is_background(tokens)) {
+            tcsetpgrp(shell_terminal, getpgrp());
+          }
           signal(SIGINT, SIG_DFL);
-          // signal(SIGQUIT, SIG_IGN);
-          // signal(SIGKILL, SIG_DFL);
           signal(SIGTERM, SIG_DFL);
           signal(SIGTSTP, SIG_DFL);
           signal(SIGCONT, SIG_DFL);
@@ -193,14 +216,15 @@ int shell(int argc, char *argv[]) {
             dup2(filedes, 1);
             tokens[redirect[1] - 1] = NULL;
             tokens[redirect[1]] = NULL;
+            tokens[redirect[1] - 1] = symbol;
+            tokens[redirect[1]] = file_name;
           }
           execv(tokens[0], tokens);
-          tokens[redirect[1] - 1] = symbol;
-          tokens[redirect[1]] = file_name;
           exit(1);
         }
       } else {
-        char *PATH = getenv("PATH");
+        char *PATH = malloc(strlen(getenv("PATH")) + 1);
+        strcpy(PATH, getenv("PATH"));
         char *tok;
         char *command = tokens[0];
         if (PATH) {
@@ -221,8 +245,6 @@ int shell(int argc, char *argv[]) {
               setpgrp();
               tcsetpgrp(shell_terminal, getpgrp());
               signal(SIGINT, SIG_DFL);
-              // signal(SIGQUIT, SIG_IGN);
-              // signal(SIGKILL, SIG_DFL);
               signal(SIGTERM, SIG_DFL);
               signal(SIGTSTP, SIG_DFL);
               signal(SIGCONT, SIG_DFL);
@@ -253,8 +275,10 @@ int shell(int argc, char *argv[]) {
             tok = strtok(NULL, ":");
           }
         }
+        free(PATH);
       }
     }
+    free_toks(tokens);
     if (shell_is_interactive)
       /* Please only print shell prompts when standard input is not a tty */
       fprintf(stdout, "%d: ", ++line_num);
