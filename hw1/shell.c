@@ -216,10 +216,10 @@ int shell(int argc, char *argv[]) {
             dup2(filedes, 1);
             tokens[redirect[1] - 1] = NULL;
             tokens[redirect[1]] = NULL;
-            tokens[redirect[1] - 1] = symbol;
-            tokens[redirect[1]] = file_name;
           }
           execv(tokens[0], tokens);
+          tokens[redirect[1] - 1] = symbol;
+          tokens[redirect[1]] = file_name;
           exit(1);
         }
       } else {
