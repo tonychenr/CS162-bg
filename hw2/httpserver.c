@@ -28,6 +28,24 @@ char *server_files_directory;
 char *server_proxy_hostname;
 int server_proxy_port;
 
+void send_file_request (int fd, char *filename) {
+  struct stat buf;
+  stat(filename, &buf);
+  char *contentType = http_get_mime_type(filename);
+  FILE *fp = fopen(filename, "r");
+  char *data = (char *) malloc(buf.st_size + 1);
+  int length = fread(data, 1, buf.st_size, fp);
+  char slength[10];
+  sprintf(slength, "%d", length);
+  http_start_response(fd, 200);
+  http_send_header(fd, "Content-Type", contentType);
+  http_send_header(fd, "Content-Length", slength);
+  http_end_headers(fd);
+  http_send_data(fd, data, length);
+
+  free(data);
+}
+
 /*
  * Reads an HTTP request from stream (fd), and writes an HTTP response
  * containing:
@@ -42,19 +60,72 @@ int server_proxy_port;
 void handle_files_request(int fd) {
 
   /* YOUR CODE HERE (Feel free to delete/modify the existing code below) */
-
   struct http_request *request = http_request_parse(fd);
+  struct stat buf;
+  char *path = (char *) malloc(strlen(server_files_directory) + strlen(request->path) + 1);
+  strcpy(path, server_files_directory);
+  strcat(path, request->path);
+  stat(path, &buf);
+  if (S_ISREG(buf.st_mode)) {
+    send_file_request (fd, path);
+  } else if (S_ISDIR(buf.st_mode)) {
+    char *index;
+    if (path[strlen(path) - 1] == '/') {
+      index = "index.html";
+    } else {
+      index = "/index.html";
+    }
+    char *index_path = (char *) malloc(strlen(path) + strlen(index) + 1);
+    strcpy(index_path, path);
+    strcat(index_path, index);
+    struct stat ibuf;
+    stat(index_path, &ibuf);
+    if (S_ISREG(ibuf.st_mode)) {
+      send_file_request(fd, index_path);
+    } else {
+      DIR *dir = opendir(path);
+      struct dirent *dp;
+      int index = 0;
+      char *new;
+      dp = readdir(dir);
+      int nextlen = sizeof("<a href=\"") + strlen(dp->d_name) + sizeof("\">") + sizeof(dp->d_name) + sizeof("</a>");
+      char *parent = "<a href=\"../\">Parent directory</a>";
+      char *html = (char *) malloc(strlen(parent) + nextlen + 1);
+      strcpy(html, parent);
+      int size = strlen(parent) + nextlen;
+      while (dp != NULL) {
+        nextlen = sizeof("<a href=\"") + strlen(dp->d_name) + sizeof("\">") + sizeof(dp->d_name) + sizeof("</a>");
+        index = index + nextlen;
+        if (size < index) {
+          new = (char *) malloc(strlen(html) + nextlen + 1);
+          strcpy(new, html);
+          free(html);
+          html = new;
+          size = strlen(html) + nextlen;
+        }
+        strcat(html, "<a href=\"");
+        strcat(html, dp->d_name);
+        strcat(html, "\">");
+        strcat(html, dp->d_name);
+        strcat(html, "</a>");
+        dp = readdir(dir);
+      }
 
-  http_start_response(fd, 200);
-  http_send_header(fd, "Content-type", "text/html");
-  http_end_headers(fd);
-  http_send_string(fd,
-      "<center>"
-      "<h1>Welcome to httpserver!</h1>"
-      "<hr>"
-      "<p>Nothing's here yet.</p>"
-      "</center>");
-
+      http_start_response(fd, 200);
+      http_send_header(fd, "Content-type", "text/html");
+      http_end_headers(fd);
+      http_send_string(fd, html);
+      closedir(dir);
+      free(index_path);
+      free(html);
+    }
+  } else {
+    http_start_response(fd, 404);
+    http_send_header(fd, "Content-type", "text/html");
+    http_end_headers(fd);
+  }
+  free(path);
+  close(fd);
 }
 
 /*
