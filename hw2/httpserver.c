@@ -127,7 +127,6 @@ void handle_files_request(int fd) {
     http_end_headers(fd);
   }
   free(path);
-  close(fd);
 }
 
 int read_write_request(int fd1, int fd2) {
@@ -190,18 +189,20 @@ void handle_proxy_request(int fd) {
 
   /* YOUR CODE HERE */
   struct hostent *host = gethostbyname(server_proxy_hostname);
-  int upstream = socket(host->h_addrtype, SOCK_STREAM, 0);
+  int upstream = socket(AF_INET, SOCK_STREAM, 0);
   if (upstream == -1) {
     perror("Failed to create a new socket");
     exit(errno);
   }
   struct sockaddr_in saddr;
-  size_t saddr_length = sizeof(saddr);
   memset(&saddr, 0, sizeof(saddr));
   saddr.sin_port = htons(server_proxy_port);
-  saddr.sin_addr.s_addr = ((struct in_addr*)(host->h_addr))->s_addr;
-  saddr.sin_family = host->h_addrtype;
-  int conn = connect(upstream, (struct sockaddr *) &saddr, saddr_length);
+  bcopy((char *) host->h_addr, 
+           (char *) &saddr.sin_addr.s_addr,
+           host->h_length);
+  saddr.sin_family = AF_INET;
+  int conn = connect(upstream, (struct sockaddr *) &saddr, sizeof(saddr));
+  printf("proxy socket %d", upstream);
   if (conn == -1) {
     perror("Failed to connect to socket");
     exit(errno);
