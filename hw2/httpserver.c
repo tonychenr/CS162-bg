@@ -17,6 +17,8 @@
 
 #include "libhttp.h"
 
+#define LIBHTTP_REQUEST_MAX_SIZE 8192
+
 /*
  * Global configuration variables.
  * You need to use these in your implementation of handle_files_request and
@@ -128,6 +130,51 @@ void handle_files_request(int fd) {
   close(fd);
 }
 
+int read_write_request(int fd1, int fd2) {
+  char *read_buffer = malloc(LIBHTTP_REQUEST_MAX_SIZE + 1);
+  int bytes_read;
+  int bytes_sent;
+  bytes_read = read(fd1, read_buffer, LIBHTTP_REQUEST_MAX_SIZE);
+  read_buffer[bytes_read] = '\0'; /* Always null-terminate. */
+  if (bytes_read == -1) {
+    free(read_buffer);
+    close(fd2);
+    return 1;
+  }
+  bytes_sent = write(fd2, read_buffer, bytes_read);
+  if (bytes_sent == -1) {
+    free(read_buffer);
+    close(fd2);
+    return 1;
+  }
+  free(read_buffer);
+  return 0;
+}
+
+void coordinate_proxy_requests(int fd1, int fd2) {
+  fd_set readfds;
+  int rc;
+  int maxfd = (fd1 > fd2) ? fd1 : fd2;
+  while (1) {
+    FD_ZERO(&readfds);
+    FD_SET(fd1, &readfds);
+    FD_SET(fd2, &readfds);
+    rc = select(maxfd, &readfds, NULL, NULL, NULL);
+    if (FD_ISSET(fd1, &readfds)) {
+      rc = read_write_request(fd1, fd2);
+      if (rc > 0) {
+        break;
+      }
+    }
+    if (FD_ISSET(fd2, &readfds)) {
+      rc = read_write_request(fd2, fd1);
+      if (rc > 0) {
+        break;
+      }
+    }
+  }
+}
+
 /*
  * Opens a connection to the proxy target (hostname=server_proxy_hostname and
  * port=server_proxy_port) and relays traffic to/from the stream fd and the
@@ -142,8 +189,28 @@ void handle_files_request(int fd) {
 void handle_proxy_request(int fd) {
 
   /* YOUR CODE HERE */
+  struct hostent *host = gethostbyname(server_proxy_hostname);
+  int upstream = socket(host->h_addrtype, SOCK_STREAM, 0);
+  if (upstream == -1) {
+    perror("Failed to create a new socket");
+    exit(errno);
+  }
+  struct sockaddr_in saddr;
+  size_t saddr_length = sizeof(saddr);
+  memset(&saddr, 0, sizeof(saddr));
+  saddr.sin_port = htons(server_proxy_port);
+  saddr.sin_addr.s_addr = ((struct in_addr*)(host->h_addr))->s_addr;
+  saddr.sin_family = host->h_addrtype;
+  int conn = connect(upstream, (struct sockaddr *) &saddr, saddr_length);
+  if (conn == -1) {
+    perror("Failed to connect to socket");
+    exit(errno);
+  }
 
+  coordinate_proxy_requests(fd, upstream);
+  close(upstream);
 }
+
 
 /*
  * Opens a TCP stream socket on all interfaces with port number PORTNO. Saves
