@@ -44,8 +44,6 @@ void send_file_request (int fd, char *filename) {
   http_send_header(fd, "Content-Length", slength);
   http_end_headers(fd);
   http_send_data(fd, data, length);
-
-  free(data);
 }
 
 /*
