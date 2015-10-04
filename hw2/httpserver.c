@@ -137,13 +137,11 @@ int read_write_request(int fd1, int fd2) {
   read_buffer[bytes_read] = '\0'; /* Always null-terminate. */
   if (bytes_read == -1) {
     free(read_buffer);
-    close(fd2);
     return 1;
   }
   bytes_sent = write(fd2, read_buffer, bytes_read);
   if (bytes_sent == -1) {
     free(read_buffer);
-    close(fd2);
     return 1;
   }
   free(read_buffer);
@@ -158,7 +156,7 @@ void coordinate_proxy_requests(int fd1, int fd2) {
     FD_ZERO(&readfds);
     FD_SET(fd1, &readfds);
     FD_SET(fd2, &readfds);
-    rc = select(maxfd, &readfds, NULL, NULL, NULL);
+    rc = select(maxfd + 1, &readfds, NULL, NULL, NULL);
     if (FD_ISSET(fd1, &readfds)) {
       rc = read_write_request(fd1, fd2);
       if (rc > 0) {
@@ -188,20 +186,23 @@ void coordinate_proxy_requests(int fd1, int fd2) {
 void handle_proxy_request(int fd) {
 
   /* YOUR CODE HERE */
-  struct hostent *host = gethostbyname(server_proxy_hostname);
-  int upstream = socket(AF_INET, SOCK_STREAM, 0);
+  struct hostent *host;
+  struct sockaddr_in saddr;
+  int upstream;
+  int conn;
+  host = gethostbyname(server_proxy_hostname);
+  upstream = socket(AF_INET, SOCK_STREAM, 0);
   if (upstream == -1) {
     perror("Failed to create a new socket");
     exit(errno);
   }
-  struct sockaddr_in saddr;
   memset(&saddr, 0, sizeof(saddr));
   saddr.sin_port = htons(server_proxy_port);
   bcopy((char *) host->h_addr, 
            (char *) &saddr.sin_addr.s_addr,
            host->h_length);
   saddr.sin_family = AF_INET;
-  int conn = connect(upstream, (struct sockaddr *) &saddr, sizeof(saddr));
+  conn = connect(upstream, (struct sockaddr *) &saddr, sizeof(saddr));
   printf("proxy socket %d", upstream);
   if (conn == -1) {
     perror("Failed to connect to socket");
