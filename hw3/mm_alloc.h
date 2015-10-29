@@ -53,7 +53,7 @@ static void list_insert(struct list_elem *before, struct list_elem *elem) {
 static void list_insert_ascending(struct list *list, struct list_elem *elem) {
     struct list_elem *e;
     for (e = list_begin (list); e != list_end (list); e = e->next)
-        if (e < elem)
+        if (e > elem)
             break;
     return list_insert (e, elem);
 }
