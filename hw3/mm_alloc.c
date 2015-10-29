@@ -74,9 +74,9 @@ void *mm_realloc(void *ptr, size_t size) {
         struct list_elem *newBlock = mm_malloc(size);
         if (newBlock != NULL) {
             if (newBlock->size < oldChunk->size) {
-                memcpy(newBlock, oldChunk->data, newBlock->size);
+                memcpy(newBlock->data, oldChunk->data, newBlock->size);
             } else {
-                memcpy(newBlock, oldChunk->data, oldChunk->size);
+                memcpy(newBlock->data, oldChunk->data, oldChunk->size);
             }
             mm_free(ptr);
             return newBlock;
