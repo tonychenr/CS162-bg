@@ -79,7 +79,7 @@ void *mm_realloc(void *ptr, size_t size) {
                 memcpy(newBlock->data, oldChunk->data, oldChunk->size);
             }
             mm_free(ptr);
-            return newBlock;
+            return newBlock->data;
         }
     }
 
