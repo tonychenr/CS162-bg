@@ -70,15 +70,17 @@ void *mm_realloc(void *ptr, size_t size) {
 
     mem_init(mem_chunks);
     struct list_elem *oldChunk = getChunk(mem_chunks, ptr);
-    if (oldChunk != NULL && oldChunk->size >= size) {
-        return oldChunk->data;
-    }
-
-    void *newBlock = mm_malloc(size);
-    if (newBlock != NULL) {
-        memcpy(newBlock, oldChunk->data, size);
-        mm_free(ptr);
-        return newBlock;
+    if (oldChunk != NULL) {
+        struct list_elem *newBlock = mm_malloc(size);
+        if (newBlock != NULL) {
+            if (newBlock->size < oldChunk->size) {
+                memcpy(newBlock, oldChunk->data, newBlock->size);
+            } else {
+                memcpy(newBlock, oldChunk->data, oldChunk->size);
+            }
+            mm_free(ptr);
+            return newBlock;
+        }
     }
 
     return NULL;
