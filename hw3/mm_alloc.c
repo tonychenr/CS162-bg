@@ -36,17 +36,21 @@ void *mm_malloc(size_t size) {
             newChunk->size = size;
             list_insert_ascending(mem_chunks, newChunk);
             nextChunk = newChunk;
+            memset(nextChunk->data, 0, size);
             return nextChunk->data;
         } else {
             if (nextChunk->size > size + sizeof(struct list_elem)) {
                 nextChunk->size = nextChunk->size - size - sizeof(struct list_elem);
                 struct list_elem *newChunk = nextChunk + sizeof(struct list_elem) + nextChunk->size;
-                newChunk->isFree = false;
+                newChunk->isFree = true;
                 newChunk->size = size;
                 list_insert_ascending(mem_chunks, newChunk);
+                memset(nextChunk->data, 0, nextChunk->size);
+                memset(nextChunk->data, 0, newChunk->size);
                 return newChunk->data;
             } else {
                 nextChunk->isFree = false;
+                memset(nextChunk->data, 0, nextChunk->size);
                 return nextChunk->data;
             }
         }
@@ -94,6 +98,7 @@ void mm_free(void *ptr) {
         if (chunk->next != list_end(mem_chunks) && nextChunk->isFree == true) {
             chunk->size += sizeof(struct list_elem) + nextChunk->size;
             list_remove(nextChunk);
+            chunk->isFree = true;
         }
     }
 }
