@@ -36,7 +36,7 @@ void *mm_malloc(size_t size) {
             newChunk->size = size;
             list_insert_ascending(mem_chunks, newChunk);
             nextChunk = newChunk;
-            memset(nextChunk->data, 0, size);
+            memset(nextChunk->data, 0, nextChunk->size);
             return nextChunk->data;
         } else {
             if (nextChunk->size > size + sizeof(struct list_elem)) {
@@ -71,7 +71,7 @@ void *mm_realloc(void *ptr, size_t size) {
     mem_init(mem_chunks);
     struct list_elem *oldChunk = getChunk(mem_chunks, ptr);
     if (oldChunk != NULL) {
-        struct list_elem *newBlock = mm_malloc(size);
+        struct list_elem *newBlock = getChunk(mem_chunks, mm_malloc(size));
         if (newBlock != NULL) {
             if (newBlock->size < oldChunk->size) {
                 memcpy(newBlock->data, oldChunk->data, newBlock->size);
