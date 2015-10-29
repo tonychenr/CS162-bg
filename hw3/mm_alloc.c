@@ -103,7 +103,7 @@ void mm_free(void *ptr) {
         if (chunk->next != list_end(mem_chunks) && nextChunk->isFree == true) {
             chunk->size += sizeof(struct list_elem) + nextChunk->size;
             list_remove(nextChunk);
-            chunk->isFree = true;
         }
+        chunk->isFree = true;
     }
 }
