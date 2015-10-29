@@ -41,7 +41,7 @@ void *mm_malloc(size_t size) {
         } else {
             if (nextChunk->size > size + sizeof(struct list_elem)) {
                 nextChunk->size = nextChunk->size - size - sizeof(struct list_elem);
-                struct list_elem *newChunk = nextChunk + sizeof(struct list_elem) + nextChunk->size;
+                struct list_elem *newChunk = (void *) nextChunk->data + nextChunk->size;
                 newChunk->isFree = false;
                 newChunk->size = size;
                 list_insert_ascending(mem_chunks, newChunk);
