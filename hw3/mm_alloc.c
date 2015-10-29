@@ -42,7 +42,7 @@ void *mm_malloc(size_t size) {
             if (nextChunk->size > size + sizeof(struct list_elem)) {
                 nextChunk->size = nextChunk->size - size - sizeof(struct list_elem);
                 struct list_elem *newChunk = nextChunk + sizeof(struct list_elem) + nextChunk->size;
-                newChunk->isFree = true;
+                newChunk->isFree = false;
                 newChunk->size = size;
                 list_insert_ascending(mem_chunks, newChunk);
                 memset(nextChunk->data, 0, nextChunk->size);
@@ -61,6 +61,11 @@ void *mm_realloc(void *ptr, size_t size) {
     /* YOUR CODE HERE */
     if (ptr == NULL) {
         return mm_malloc(size);
+    }
+
+    if (size == 0) {
+        mm_free(ptr);
+        return NULL;
     }
 
     mem_init(mem_chunks);
