@@ -140,24 +140,49 @@ void tpcleader_handle_get(tpcleader_t *leader, kvrequest_t *req, kvresponse_t *r
   /* TODO: Implement me! */
   char *key = req->key;
   tpcfollower_t *server = tpcleader_get_primary(leader, key);
-  int sockfd = connect_to(server->host, server->port, 10);
+  int sockfd = connect_to(server->host, server->port, 100);
   if (sockfd == -1) {
     int i;
     for (i = 1; i < leader->redundancy; i++) {
-      server = tpcleader_get_successor(server);
-      sockfd = connect_to(server->host, server->port, 10);
+      server = tpcleader_get_successor(leader, server);
+      sockfd = connect_to(server->host, server->port, 100);
       if (sockfd != -1) {
         break;
       }
     }
   }
   if (sockfd != -1) {
-    kvresponse_t *response = kvrequest_recieve(sockfd);
+    kvresponse_t *response = kvresponse_recieve(sockfd);
     kvrequest_send(req, sockfd);
-    strcpy(res->type, response->type);
+    sleep(2);
+    res->type = response->type;
     strcpy(res->body, response->body);
     kvresponse_free(response);
     close(sockfd);
+  }
+}
+
+static void phase_two (tpcleader_t *leader, kvrequest_t *req) {
+  int sockfd = -1;
+  kvresponse_t *response = NULL;
+  char *key = req->key;
+  tpcfollower_t *server = tpcleader_get_primary(leader, key);
+  int i;
+  for (i = 0; i < leader->redundancy; i++) {
+    while (sockfd == -1) {
+      sockfd = connect_to(server->host, server->port, 100);
+      response = kvresponse_recieve(sockfd);
+      kvrequest_send(req, sockfd);
+      sleep(2);
+      if (response != NULL && response->type == ACK) {
+        sockfd = -1;
+        kvresponse_free(response);
+        close(sockfd);
+        response = NULL;
+        break;
+      }
+    }
+    server = tpcleader_get_successor(leader, server);
   }
 }
 
@@ -176,8 +201,47 @@ void tpcleader_handle_tpc(tpcleader_t *leader, kvrequest_t *req, kvresponse_t *r
     return;
   }
   /* TODO: Implement me! */
-  res->type = ERROR;
-  alloc_msg(res->body, ERRMSG_NOT_IMPLEMENTED);
+  bool commit = true;
+  char *key = req->key;
+  kvresponse_t *response = NULL;
+  tpcfollower_t *server = tpcleader_get_primary(leader, key);
+  int sockfd;
+  int i;
+  for (i = 0; i < leader->redundancy; i++) {
+    sockfd = connect_to(server->host, server->port, 100);
+    if (sockfd != -1) {
+      response = kvresponse_recieve(sockfd);
+      kvrequest_send(req, sockfd);
+      sleep(2);
+      if (response == NULL) {
+        commit = false;
+      } else if (strcmp(response->body, MSG_COMMIT) != 0) {
+        commit = false;
+        strcpy(res->body, response->body);
+      }
+      kvresponse_free(response);
+      close(sockfd);
+    } else {
+      commit = false;
+    }
+    server = tpcleader_get_successor(leader, server);
+  }
+  kvrequest_t *request = calloc(1, sizeof(kvrequest_t));
+  request->key = NULL;
+  request->val = NULL;
+  if (commit == false) {
+    request->type = ABORT;
+    res->type = ERROR;
+    if (res->body == NULL) {
+      res->body = ERRMSG_GENERIC_ERROR;
+    }
+    phase_two(leader, request);
+  } else {
+    request->type = COMMIT;
+    res->type = SUCCESS;
+    phase_two(leader, request);
+  }
+  kvrequest_free(request);
 }
 
 

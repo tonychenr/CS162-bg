@@ -126,7 +126,7 @@ void kvserver_handle_tpc(kvserver_t *server, kvrequest_t *req, kvresponse_t *res
   /* TODO: Implement me! */
   if (req->type == GETREQ) {
     char *buf = malloc(MAX_VALLEN + 1);
-    int ret = kvserver_get(server, req->key, buf);
+    int ret = kvserver_get(server, req->key, &buf);
     if (ret == 0) {
       res->type = GETRESP;
       alloc_msg(res->body, buf);
@@ -151,26 +151,40 @@ void kvserver_handle_tpc(kvserver_t *server, kvrequest_t *req, kvresponse_t *res
     if (ret != 0) {
       alloc_msg(res->body, GETMSG(ret));
     } else {
-      strcpy(server->pending_msg, req->type);
+      server->pending_key = malloc(MAX_KEYLEN + 1);
+      server->pending_value = malloc(MAX_VALLEN + 1);
+      server->pending_msg = req->type;
       strcpy(server->pending_key, req->key);
       strcpy(server->pending_value, req->val);
       alloc_msg(res->body, MSG_COMMIT)
     }
   } else if (req->type == COMMIT) {
-    tpclog_log(&server->log, req->type, req->key, req->val);
-    server->state = TPC_COMMIT;
-    if (server->pending_msg == PUTREQ) {
-      kvserver_put(server, server->pending_key, req->pending_value);
-    } else {
-      kvserver_del(server, server->pending_key);
+    if (server->pending_key != NULL) {
+      tpclog_log(&server->log, req->type, req->key, req->val);
+      server->state = TPC_COMMIT;
+      if (server->pending_msg == PUTREQ) {
+        kvserver_put(server, server->pending_key, server->pending_value);
+      } else {
+        kvserver_del(server, server->pending_key);
+      }
+      tpclog_clear_log(&server->log);
+      free(server->pending_key);
+      free(server->pending_value);
+      server->pending_key = NULL;
+      server->pending_value = NULL;
     }
-    tpclog_clear_log(server->log);
     res->type = ACK;
     server->state = TPC_WAIT;
   } else if (req->type == ABORT) {
-    tpclog_log(&server->log, req->type, req->key, req->val);
-    server->state = TPC_ABORT;
-    tpclog_clear_log(server->log);
+    if (server->pending_key != NULL) {
+      tpclog_log(&server->log, req->type, req->key, req->val);
+      server->state = TPC_ABORT;
+      tpclog_clear_log(&server->log);
+      free(server->pending_key);
+      free(server->pending_value);
+      server->pending_key = NULL;
+      server->pending_value = NULL;
+    }
     res->type = ACK;
     server->state = TPC_WAIT;
   }
@@ -215,7 +229,7 @@ void kvserver_handle(kvserver_t *server, int sockfd, void *extra) {
  */
 int kvserver_rebuild_state(kvserver_t *server) {
   /* TODO: Implement me! */
-  tpclog_begin(&server->log);
+  tpclog_iterate_begin(&server->log);
   logentry_t *last_entry = NULL;
   logentry_t *update_entry = NULL;
   while (tpclog_iterate_has_next(&server->log)) {
@@ -224,7 +238,9 @@ int kvserver_rebuild_state(kvserver_t *server) {
       update_entry = last_entry;
   }
   if (last_entry->type == PUTREQ || last_entry->type == DELREQ) {
-    strcpy(server->pending_msg, last_entry->type);
+    server->pending_key = malloc(MAX_KEYLEN + 1);
+    server->pending_value = malloc(MAX_VALLEN + 1);
+    server->pending_msg = last_entry->type;
     strcpy(server->pending_key, last_entry->data);
     strcpy(server->pending_value, last_entry->data + strlen(last_entry->data) + 1);
     server->state = TPC_READY;
@@ -233,7 +249,7 @@ int kvserver_rebuild_state(kvserver_t *server) {
       char *key = update_entry->data;
       char *value = update_entry->data + strlen(last_entry->data) + 1;
       char *buf = malloc(MAX_VALLEN + 1);
-      kvserver_get(server, key, buf);
+      kvserver_get(server, key, &buf);
       if (strcmp(buf, value) != 0) {
         if (update_entry->type == PUTREQ) {
           kvserver_put(server, key, value);
@@ -243,8 +259,10 @@ int kvserver_rebuild_state(kvserver_t *server) {
       }
       free(buf);
     }
-    tpclog_clear_log(server->log);
+    tpclog_clear_log(&server->log);
     server->state = TPC_INIT;
+    server->pending_key = NULL;
+    server->pending_value = NULL;
   }
 
   return -1;
