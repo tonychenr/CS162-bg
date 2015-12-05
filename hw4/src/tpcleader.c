@@ -218,7 +218,7 @@ void tpcleader_handle_tpc(tpcleader_t *leader, kvrequest_t *req, kvresponse_t *r
       } else if (strcmp(response->body, MSG_COMMIT) != 0) {
         commit = false;
         errored = true;
-        strcpy(res->body, response->body);
+        alloc_msg(res->body, response->body);
       }
       kvresponse_free(response);
       close(sockfd);
@@ -234,7 +234,7 @@ void tpcleader_handle_tpc(tpcleader_t *leader, kvrequest_t *req, kvresponse_t *r
     request->type = ABORT;
     res->type = ERROR;
     if (errored == false) {
-      res->body = ERRMSG_GENERIC_ERROR;
+      alloc_msg(res->body, ERRMSG_GENERIC_ERROR);
     }
     phase_two(leader, request, key);
   } else {
