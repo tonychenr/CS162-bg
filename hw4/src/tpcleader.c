@@ -152,28 +152,25 @@ void tpcleader_handle_get(tpcleader_t *leader, kvrequest_t *req, kvresponse_t *r
     }
   }
   if (sockfd != -1) {
-    kvresponse_t *response = kvresponse_recieve(sockfd);
     kvrequest_send(req, sockfd);
-    sleep(2);
+    kvresponse_t *response = kvresponse_recieve(sockfd);
     res->type = response->type;
-    strcpy(res->body, response->body);
+    alloc_msg(res->body, response->body);
     kvresponse_free(response);
     close(sockfd);
   }
 }
 
-static void phase_two (tpcleader_t *leader, kvrequest_t *req) {
+static void phase_two (tpcleader_t *leader, kvrequest_t *req, char *key) {
   int sockfd = -1;
   kvresponse_t *response = NULL;
-  char *key = req->key;
   tpcfollower_t *server = tpcleader_get_primary(leader, key);
   int i;
   for (i = 0; i < leader->redundancy; i++) {
     while (sockfd == -1) {
       sockfd = connect_to(server->host, server->port, 100);
-      response = kvresponse_recieve(sockfd);
       kvrequest_send(req, sockfd);
-      sleep(2);
+      response = kvresponse_recieve(sockfd);
       if (response != NULL && response->type == ACK) {
         sockfd = -1;
         kvresponse_free(response);
@@ -202,6 +199,7 @@ void tpcleader_handle_tpc(tpcleader_t *leader, kvrequest_t *req, kvresponse_t *r
   }
   /* TODO: Implement me! */
   bool commit = true;
+  bool errored = false;
   char *key = req->key;
   kvresponse_t *response = NULL;
   tpcfollower_t *server = tpcleader_get_primary(leader, key);
@@ -210,13 +208,13 @@ void tpcleader_handle_tpc(tpcleader_t *leader, kvrequest_t *req, kvresponse_t *r
   for (i = 0; i < leader->redundancy; i++) {
     sockfd = connect_to(server->host, server->port, 100);
     if (sockfd != -1) {
-      response = kvresponse_recieve(sockfd);
       kvrequest_send(req, sockfd);
-      sleep(2);
+      response = kvresponse_recieve(sockfd);
       if (response == NULL) {
         commit = false;
       } else if (strcmp(response->body, MSG_COMMIT) != 0) {
         commit = false;
+        errored = true;
         strcpy(res->body, response->body);
       }
       kvresponse_free(response);
@@ -232,14 +230,14 @@ void tpcleader_handle_tpc(tpcleader_t *leader, kvrequest_t *req, kvresponse_t *r
   if (commit == false) {
     request->type = ABORT;
     res->type = ERROR;
-    if (res->body == NULL) {
+    if (errored == false) {
       res->body = ERRMSG_GENERIC_ERROR;
     }
-    phase_two(leader, request);
+    phase_two(leader, request, key);
   } else {
     request->type = COMMIT;
     res->type = SUCCESS;
-    phase_two(leader, request);
+    phase_two(leader, request, key);
   }
   kvrequest_free(request);
 }

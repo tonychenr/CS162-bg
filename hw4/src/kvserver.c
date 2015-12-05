@@ -125,21 +125,20 @@ int kvserver_del(kvserver_t *server, char *key) {
 void kvserver_handle_tpc(kvserver_t *server, kvrequest_t *req, kvresponse_t *res) {
   /* TODO: Implement me! */
   if (req->type == GETREQ) {
-    char *buf = malloc(MAX_VALLEN + 1);
+    char *buf;
     int ret = kvserver_get(server, req->key, &buf);
     if (ret == 0) {
       res->type = GETRESP;
       alloc_msg(res->body, buf);
+      free(buf);
     } else {
       res->type = ERROR;
       buf = GETMSG(ret);
       alloc_msg(res->body, buf);
     }
-    free(buf);
   } else if (req->type == PUTREQ || req->type == DELREQ) {
-    tpclog_log(&server->log, req->type, req->key, req->val);
-
     int ret;
+    tpclog_log(&server->log, req->type, req->key, req->val);
     if (req->type == PUTREQ) {
       ret = kvserver_put_check(server, req->key, req->val);
     } else {
@@ -155,7 +154,9 @@ void kvserver_handle_tpc(kvserver_t *server, kvrequest_t *req, kvresponse_t *res
       server->pending_value = malloc(MAX_VALLEN + 1);
       server->pending_msg = req->type;
       strcpy(server->pending_key, req->key);
-      strcpy(server->pending_value, req->val);
+      if (req->val != NULL) {
+        strcpy(server->pending_value, req->val);
+      }
       alloc_msg(res->body, MSG_COMMIT)
     }
   } else if (req->type == COMMIT) {
@@ -236,6 +237,9 @@ int kvserver_rebuild_state(kvserver_t *server) {
     last_entry = tpclog_iterate_next(&server->log);
     if (last_entry->type == PUTREQ || last_entry->type == DELREQ)
       update_entry = last_entry;
+  }
+  if (last_entry == NULL) {
+    return 0;
   }
   if (last_entry->type == PUTREQ || last_entry->type == DELREQ) {
     server->pending_key = malloc(MAX_KEYLEN + 1);
