@@ -168,17 +168,19 @@ static void phase_two (tpcleader_t *leader, kvrequest_t *req, char *key) {
   int i;
   for (i = 0; i < leader->redundancy; i++) {
     while (sockfd == -1) {
-      sockfd = connect_to(server->host, server->port, 100);
-      kvrequest_send(req, sockfd);
-      response = kvresponse_recieve(sockfd);
-      if (response != NULL && response->type == ACK) {
-        sockfd = -1;
-        kvresponse_free(response);
-        close(sockfd);
-        response = NULL;
-        break;
+      sockfd = connect_to(server->host, server->port, 10);
+      if (sockfd != -1) {
+        kvrequest_send(req, sockfd);
+        response = kvresponse_recieve(sockfd);
+        if (response != NULL && response->type == ACK) {
+          kvresponse_free(response);
+          close(sockfd);
+          break;
+        }
       }
     }
+    sockfd = -1;
+    response = NULL;
     server = tpcleader_get_successor(leader, server);
   }
 }
@@ -206,7 +208,7 @@ void tpcleader_handle_tpc(tpcleader_t *leader, kvrequest_t *req, kvresponse_t *r
   int sockfd;
   int i;
   for (i = 0; i < leader->redundancy; i++) {
-    sockfd = connect_to(server->host, server->port, 100);
+    sockfd = connect_to(server->host, server->port, 10);
     if (sockfd != -1) {
       kvrequest_send(req, sockfd);
       response = kvresponse_recieve(sockfd);
