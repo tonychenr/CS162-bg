@@ -165,7 +165,7 @@ void kvserver_handle_tpc(kvserver_t *server, kvrequest_t *req, kvresponse_t *res
       alloc_msg(res->body, MSG_COMMIT)
     }
   } else if (req->type == COMMIT) {
-    if (server->pending_key != NULL) {
+    if (server->state == TPC_READY) {
       tpclog_log(&server->log, req->type, req->key, req->val);
       server->state = TPC_COMMIT;
       if (server->pending_msg == PUTREQ) {
@@ -180,9 +180,9 @@ void kvserver_handle_tpc(kvserver_t *server, kvrequest_t *req, kvresponse_t *res
       server->pending_value = NULL;
     }
     res->type = ACK;
-    server->state = TPC_WAIT;
+    server->state = TPC_INIT;
   } else if (req->type == ABORT) {
-    if (server->pending_key != NULL) {
+    if (server->state == TPC_READY) {
       tpclog_log(&server->log, req->type, req->key, req->val);
       server->state = TPC_ABORT;
       tpclog_clear_log(&server->log);
@@ -192,7 +192,7 @@ void kvserver_handle_tpc(kvserver_t *server, kvrequest_t *req, kvresponse_t *res
       server->pending_value = NULL;
     }
     res->type = ACK;
-    server->state = TPC_WAIT;
+    server->state = TPC_INIT;
   }
 }
 

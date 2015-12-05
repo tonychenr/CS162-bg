@@ -172,12 +172,11 @@ static void phase_two (tpcleader_t *leader, kvrequest_t *req, char *key) {
       if (sockfd != -1) {
         kvrequest_send(req, sockfd);
         response = kvresponse_recieve(sockfd);
-        if (response != NULL && response->type == ACK) {
-          kvresponse_free(response);
-          close(sockfd);
-          break;
-        }
+        kvresponse_free(response);
+        close(sockfd);
+        break;
       }
+      sleep(2);
     }
     sockfd = -1;
     response = NULL;
