@@ -170,8 +170,10 @@ static void phase_two (tpcleader_t *leader, kvrequest_t *req, char *key) {
     while (sockfd == -1) {
       sockfd = connect_to(server->host, server->port, 10);
       if (sockfd != -1) {
-        kvrequest_send(req, sockfd);
-        response = kvresponse_recieve(sockfd);
+        while (response == NULL) {
+          kvrequest_send(req, sockfd);
+          response = kvresponse_recieve(sockfd);
+        }
         kvresponse_free(response);
         close(sockfd);
         break;
