@@ -137,6 +137,11 @@ void kvserver_handle_tpc(kvserver_t *server, kvrequest_t *req, kvresponse_t *res
       alloc_msg(res->body, buf);
     }
   } else if (req->type == PUTREQ || req->type == DELREQ) {
+    if (server->state == TPC_READY) {
+      res->type = ERROR;
+      alloc_msg(res->body, ERRMSG_INVALID_REQUEST);
+      return;
+    }
     int ret;
     tpclog_log(&server->log, req->type, req->key, req->val);
     if (req->type == PUTREQ) {
